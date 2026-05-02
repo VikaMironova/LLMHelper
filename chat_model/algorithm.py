@@ -14,46 +14,78 @@ QUESTIONS_BANK = {
 
 levels = list(QUESTIONS_BANK.keys())
 for i, level in enumerate(levels, 1):
-    print(f"{i} - {level}")
-ask_me = int(input("Пожалуйста, выберите уровень сложности (1-3): "))
-prole = levels[ask_me - 1]
+    print(f"{i} -> {level}")
 
-titles = list(QUESTIONS_BANK[prole].keys())
+while True:
+    try:
+        ask_me_level = int(input("Пожалуйста, выберите уровень сложности (1-3): "))
+        if 1 <= ask_me_level <= 3:
+            break
+
+        print("Пожалуйста, выберите 1, 2 или 3")
+    except ValueError:
+        print("Пожалуйста, введите число")
+
+answer_one = levels[ask_me_level - 1]
+
+
+titles = list(QUESTIONS_BANK[answer_one].keys())
 for i, title in enumerate(titles, 1):
-    print(f"{i} - {title}")
-ask_me_1 = int(input("Пожалуйста, выберите тему (1-4): "))
-prole_1 = titles[ask_me_1 - 1]
+    print(f"{i} -> {title}")
+
+while True:
+    try:
+        ask_me_title = int(input("Пожалуйста, выберите тему (1-4): "))
+        if 1 <= ask_me_title <= 4:
+            break
+
+        print("Пожалуйста, выберите 1, 2, 3 или 4")
+    except ValueError:
+        print("Пожалуйста, введите число")
+
+answer_two = titles[ask_me_title - 1]
+
 
 print("Сколько вопросов хотите?")
-print("1 - 3 вопроса (быстрое)")
-print("2 - 5 вопросов (среднее)")
-print("3 - 10 вопросов (полное)")
+print("1 -> 3 вопроса (быстрое)")
+print("2 -> 5 вопросов (среднее)")
+print("3 -> 10 вопросов (полное)")
 
-q_choice = int(input("Ваш выбор (1-3): "))
+while True:
+    try:
+        ask_me_point = int(input("Ваш выбор (1-3): "))
+        if 1 <= ask_me_point <= 3:
+            break
+        print("Пожалуйста, выберите 1, 2 или 3")
 
-if q_choice == 1:
-    num_questions = 3
-elif q_choice == 2:
-    num_questions = 5
-else:
-    num_questions = 10
+    except ValueError:
+        print("Пожалуйста, введите число")
 
-all_questions = QUESTIONS_BANK[prole][prole_1]
-select_questions = random.sample(all_questions, min(num_questions, len(all_questions)))
+num_map = {1: 3, 2: 5, 3: 10}
+num_questions = num_map.get(ask_me_point, 10)
 
-print(f"Подготовлено {len(select_questions)} вопроса(-ов) уровень {prole} по теме {prole_1}")
+all_questions = QUESTIONS_BANK[answer_one][answer_two]
+answer_three = random.sample(all_questions, min(num_questions, len(all_questions)))
+
+print(f"Подготовлено {len(answer_three)} вопроса(-ов) уровень {answer_one} по теме {answer_two}")
+
 
 answers_history = []
 
-for i, question in enumerate(select_questions, 1):
-    print(f"\nВопрос {i}/{len(select_questions)}:")
+for i, question in enumerate(answer_three, 1):
+    print(f"\nВопрос {i}/{len(answer_three)}:")
     print(f"{question}\n")
-    user_answer = input("Ваш ответ: ")
+
+    user_answer = input("Ваш ответ (если не знаете ответ на вопрос или хотите пропустить, нажмите Enter): ")
+
+    if user_answer.strip() == "":
+        user_answer = ""
 
     answers_history.append({
         "question": question,
         "answer": user_answer,
-        "question_number": i
+        "question_number": i,
+        "is_skipped": (user_answer == "")
     })
 
 print("Все ответы собраны. Проверяю...")
@@ -64,15 +96,27 @@ def evaluate_all_answers(level: str, title: str, answers: list) -> dict:
     Отправляет ВСЕ ответы пользователя одним запросом в LLM
     """
     questions_text = ""
+
     for a in answers:
+
+        is_skipped = a.get("is_skipped", False)
+        answer_text = a['answer']
+
+        if is_skipped or answer_text.strip() == "":
+            answer_display = "[КАНДИДАТ НЕ ДАЛ ОТВЕТА]"
+        else:
+            answer_display = answer_text
+
         questions_text += f"""
         ### Вопрос {a['question_number']}:
+        
         {a['question']}
         
         ### Ответ кандидата на вопрос {a['question_number']}:
-        {a['answer']}
+        
+        {answer_display}
+        """
 
-    """
     prompt = f"""
         Ты — строгий технический интервьюер.
         
@@ -83,7 +127,12 @@ def evaluate_all_answers(level: str, title: str, answers: list) -> dict:
         
         {questions_text}
         
-        Оцени ответы кандидата. Верни ТОЛЬКО JSON в точном формате:
+        ВАЖНО: Если в ответе написано "[КАНДИДАТ НЕ ДАЛ ОТВЕТА]" — 
+        это значит, что кандидат пропустил вопрос или не ответил.
+        В таком случае ставь score = 0, feedback = "Нет ответа на вопрос",
+        what_is_good = "-", what_to_improve = "Нужно давать ответ".
+        
+        Оцени ответы кандидата. Верни ТОЛЬКО JSON в точном формате:    
         {{
             "total_summary": {{
                 "average_score": число от 0 до 10,
@@ -152,7 +201,7 @@ def evaluate_all_answers(level: str, title: str, answers: list) -> dict:
             ]
         }
 
-evaluation = evaluate_all_answers(prole, prole_1, answers_history)
+evaluation = evaluate_all_answers(answer_one, answer_two, answers_history)
 
 for q_result in evaluation.get("question_results", []):
 
